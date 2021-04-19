@@ -1,8 +1,9 @@
-// extern crate futures;
 extern crate futures;
 extern crate nipper;
 extern crate reqwest;
 extern crate tokio;
+extern crate clap;
+
 
 use futures::future;
 use nipper::Document;
@@ -11,9 +12,15 @@ use std::error::Error;
 use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use clap::{Arg, App};
 
 struct ParseError<'uri> {
     uri: &'uri str,
+}
+
+#[derive(Debug, Default)]
+struct CliOpts {
+
 }
 
 impl<'uri> Error for ParseError<'uri> {}
@@ -66,7 +73,7 @@ fn parse_page(args: &mut Args, pattern: &str) -> Vec<String> {
 }
 
 fn check_url(url_str: &str) -> Result<(), ParseError> {
-match url_str.split(':').next().unwrap() {
+    match url_str.split(':').next().unwrap() {
         "http" => Ok(()),
         "https" => Ok(()),
         _ => Err(ParseError { uri: &url_str }),
