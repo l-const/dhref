@@ -25,6 +25,12 @@ asynchronously downloads files filtered by the filetype specified in the input.
     dhref <url>  -o ./out -f csv
 ```
 
+### Install
+
+```bash
+    cargo install dhref
+```
+
 ### Help
 
 ```bash
