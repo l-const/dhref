@@ -3,7 +3,7 @@
 
 ### Description
 The program scrapes the url page specified for the hyperlink with   
-elative/root-relative URLs and  
+relative/root-relative URLs and  
 asynchronously downloads files filtered by the filetype specified in the input.
 
 ### FileTypes
