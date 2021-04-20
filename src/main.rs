@@ -13,7 +13,7 @@ use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
-struct ParseError<'uri> {
+struct ParseURLError<'uri> {
     uri: &'uri str,
 }
 
@@ -72,43 +72,52 @@ impl Default for FileType {
     }
 }
 
-impl<'uri> Error for ParseError<'uri> {}
+impl<'uri> Error for ParseURLError<'uri> {}
 
-impl<'uri> fmt::Debug for ParseError<'uri> {
+impl<'uri> fmt::Debug for ParseURLError<'uri> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ParserErrror : {} does not have a http/https scheme!",
+            "ParseURLErrror : {} does not have a http/https scheme!",
             self.uri
         )
     }
 }
 
-impl<'uri> fmt::Display for ParseError<'uri> {
+impl<'uri> fmt::Display for ParseURLError<'uri> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ParserError: {} does not have a http/https scheme!",
+            "ParseURLError: {} does not have a http/https scheme!",
             self.uri
         )
     }
 }
 
-async fn download_one(location: &str) {
+async fn download_one(location: &str, out_dir: &str) {
     let body = reqwest::get(location).await.unwrap().bytes().await.unwrap();
-    if let Ok(mut file) = File::create(location.split('/').last().unwrap()).await {
+    if let Ok(mut file) = File::create(format!(
+        "{}{}",
+        out_dir,
+        location.split('/').last().expect("Error creating a file!")
+    ))
+    .await
+    {
         file.write_all(&body).await.unwrap();
     }
 }
 
 #[tokio::main]
-async fn download_all(vector_path: Vec<String>) {
-    let futures: Vec<_> = vector_path.iter().map(|path| download_one(path)).collect();
+async fn download_all(vector_path: Vec<String>, out_dir: &str) {
+    let futures: Vec<_> = vector_path
+        .iter()
+        .map(|path| download_one(path, out_dir))
+        .collect();
     future::join_all(futures).await;
 }
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Option<Vec<String>> {
-    check_url(base_uri).unwrap();
+    check_url(base_uri).expect("Error in url format: ");
     let body = reqwest::blocking::get(base_uri).unwrap().text().unwrap();
     let document = Document::from(&body);
     let elements: Vec<String> = document
@@ -132,11 +141,15 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Option<Vec<String>> {
     }
 }
 
-fn check_url(url_str: &str) -> Result<(), ParseError> {
-    match url_str.split(':').next().unwrap() {
-        "http" => Ok(()),
-        "https" => Ok(()),
-        _ => Err(ParseError { uri: &url_str }),
+fn check_url(url_str: &str) -> Result<(), ParseURLError> {
+    if let Some(res) = url_str.split(':').next() {
+        match res {
+            "http" => Ok(()),
+            "https" => Ok(()),
+            _ => Err(ParseURLError { uri: &url_str }),
+        }
+    } else {
+        Err(ParseURLError { uri: &url_str })
     }
 }
 
@@ -171,6 +184,6 @@ fn main() {
     };
 
     if let Some(paths) = parse_page(cli_opts.page, cli_opts.ftype) {
-        download_all(paths)
+        download_all(paths, cli_opts.out_dir);
     }
 }
