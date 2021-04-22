@@ -1,10 +1,13 @@
-# dhref
+# dhref 
+
+![Crates.io](https://img.shields.io/crates/v/dhref)
+
 **Download files embed to a page through relative/root-relative URLs.**
 
 ### Description
 The program scrapes the url page specified for the hyperlink with   
-relative/root-relative URLs and  
-asynchronously downloads files filtered by the filetype specified in the input.
+relative/root-relative URLs and asynchronously downloads files filtered
+by the filetype specified in the input.
 
 ### FileTypes
 * PDF
