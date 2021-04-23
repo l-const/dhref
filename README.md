@@ -2,7 +2,7 @@
 
 ![Crates.io](https://img.shields.io/crates/v/dhref)
 
-**Download files embed to a page through relative/root-relative URLs.**
+**Download files embed to a page through relative/root-relative URLs, from your terminal.**
 
 ### Description
 The program scrapes the url page specified for the hyperlink with   
