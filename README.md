@@ -39,7 +39,7 @@ by the filetype specified in the input.
 ```bash
     dhref --help
 
-    dhref 0.1.0
+    dhref 0.1.1
     Kostas L. <konlampro94@gmail.com>
     Download files embed in a page through
         relative and root-relative hyperlinks.
