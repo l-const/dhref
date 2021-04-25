@@ -1,10 +1,13 @@
-# dhref
-**Download files embed to a page through relative/root-relative URLs.**
+# dhref 
+
+![Crates.io](https://img.shields.io/crates/v/dhref)
+
+**Download files embed to a page through relative/root-relative URLs, from your terminal.**
 
 ### Description
 The program scrapes the url page specified for the hyperlink with   
-elative/root-relative URLs and  
-asynchronously downloads files filtered by the filetype specified in the input.
+relative/root-relative URLs and asynchronously downloads files filtered
+by the filetype specified in the input.
 
 ### FileTypes
 * PDF
@@ -25,12 +28,18 @@ asynchronously downloads files filtered by the filetype specified in the input.
     dhref <url>  -o ./out -f csv
 ```
 
+### Install
+
+```bash
+    cargo install dhref
+```
+
 ### Help
 
 ```bash
     dhref --help
 
-    dhref 0.1.0
+    dhref 0.1.1
     Kostas L. <konlampro94@gmail.com>
     Download files embed in a page through
         relative and root-relative hyperlinks.

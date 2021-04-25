@@ -1,12 +1,12 @@
 [package]
 name = "dhref"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["l-const <const-l@outlook.com>"]
 edition = "2018"
 license = "MIT"
 repository = "https://github.com/l-const/dhref"
 description = "Download files embed to a page through relative/root-relative URLs."
-
+categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
