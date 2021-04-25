@@ -13,6 +13,20 @@ use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+
+/// Represents different type of errors that can happen.
+#[derive(Debug, Clone)]
+enum MyError {
+    /// The error was caued by a failure to read or write bytes on an IO
+    /// stream.
+    Io,
+    // The error was caused during an HTTP GET request.
+    HttpReq,
+    /// The error was caused because it was not specified as input a valid http/https url.
+    URLFormat
+}
+
+
 struct ParseError<'uri> {
     uri: &'uri str,
 }
@@ -172,5 +186,15 @@ fn main() {
 
     if let Some(paths) = parse_page(cli_opts.page, cli_opts.ftype) {
         download_all(paths)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_page(){
+
     }
 }
