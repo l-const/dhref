@@ -18,11 +18,11 @@ use tokio::io::AsyncWriteExt;
 enum MyError {
     /// The error was caued by a failure to read or write bytes on an IO
     /// stream.
-    Io,
+    Io, // std::io::Error
     // The error was caused during an HTTP GET request.
-    HttpReq,
+    HttpReq, // reqwest::Error
     /// The error was caused because it was not specified as input a valid http/https url.
-    URLFormat
+    URLFormat // 
 }
 
 
