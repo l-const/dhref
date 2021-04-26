@@ -13,19 +13,22 @@ use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+/// Define custorm Result
+type Result<T> = std::result::Result<T, CrateError>;
+
 /// Represents different type of errors that can happen.
 #[derive(Debug, Clone)]
-enum MyError {
+enum CrateError {
     /// The error was caued by a failure to read or write bytes on an IO
     /// stream.
     Io,
     // The error was caused during an HTTP GET request.
     HttpReq,
     /// The error was caused because it was not specified as input a valid http/https url.
-    URLFormat
+    URLFormat,
 }
 
-
+#[derive(PartialEq)]
 struct ParseURLError<'uri> {
     uri: &'uri str,
 }
@@ -154,7 +157,7 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Option<Vec<String>> {
     }
 }
 
-fn check_url(url_str: &str) -> Result<(), ParseURLError> {
+fn check_url(url_str: &str) -> std::result::Result<(), ParseURLError> {
     if let Some(res) = url_str.split(':').next() {
         match res {
             "http" => Ok(()),
@@ -206,7 +209,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_page(){
-
+    fn test_check_url() {
+        let mut url = "file://hello";
+        assert!(check_url(url).is_err());
+        url = "https://google.com";
+        assert!(check_url(url).is_ok());
+        url = "http://google.com";
+        assert!(check_url(url).is_ok());
     }
 }
