@@ -21,12 +21,27 @@ type Result<T> = std::result::Result<T, CrateError>;
 enum CrateError {
     /// The error was caued by a failure to read or write bytes on an IO
     /// stream.
-    Io,
+    IoError,
     // The error was caused during an HTTP GET request.
-    HttpReq,
+    HttpReqError,
     /// The error was caused because it was not specified as input a valid http/https url.
-    URLFormat,
+    URLFormatError,
+    /// The error was used during parsing HTML tokens, searching for some HTML Element.
+    ParseHtmlError,
 }
+
+impl fmt::Display for CrateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CrateError::IoError => write!(f, "Io Error!"),
+            CrateError::HttpReqError => write!(f, "Http Request Error!"),
+            CrateError::URLFormatError => write!(f, "URL Format Error!"),
+            CrateError::ParseHtmlError => write!(f, "Parse HTML Tree Error!"),
+        }
+    }
+}
+
+impl Error for CrateError {}
 
 #[derive(PartialEq)]
 struct ParseURLError<'uri> {
@@ -110,17 +125,19 @@ impl<'uri> fmt::Display for ParseURLError<'uri> {
     }
 }
 
-async fn download_one(location: &str, out_dir: &str) {
-    let body = reqwest::get(location).await.unwrap().bytes().await.unwrap();
-    if let Ok(mut file) = File::create(format!(
-        "{}{}",
-        out_dir,
-        location.split('/').last().expect("Error creating a file!")
-    ))
-    .await
-    {
-        file.write_all(&body).await.unwrap();
+async fn download_one(location: &str, out_dir: &str) -> Result<()> {
+    if let Ok(body) = reqwest::get(location).await.unwrap().bytes().await {
+        if let Ok(mut file) = File::create(format!(
+            "{}{}",
+            out_dir,
+            location.split('/').last().expect("Error creating a file!")
+        ))
+        .await
+        {
+            return file.write_all(&body).await.map_err(|_| CrateError::IoError);
+        }
     }
+    Err(CrateError::HttpReqError)
 }
 
 #[tokio::main]
@@ -132,8 +149,9 @@ async fn download_all(vector_path: Vec<String>, out_dir: &str) {
     future::join_all(futures).await;
 }
 
-fn parse_page(base_uri: &str, ftype: FileType) -> Option<Vec<String>> {
+fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
     check_url(base_uri).expect("Error in url format: ");
+    //TODO: IO:ERROR handle
     let body = reqwest::blocking::get(base_uri).unwrap().text().unwrap();
     let document = Document::from(&body);
     let elements: Vec<String> = document
@@ -151,22 +169,21 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Option<Vec<String>> {
         .map(|elem| format!("{}{}", &base_uri, elem))
         .collect();
     if elements.len() > 0 {
-        Some(elements)
+        Ok(Some(elements))
     } else {
-        None
+        Ok(None)
     }
 }
 
-fn check_url(url_str: &str) -> std::result::Result<(), ParseURLError> {
+fn check_url(url_str: &str) -> Result<()> {
     if let Some(res) = url_str.split(':').next() {
-        match res {
+        return match res {
             "http" => Ok(()),
             "https" => Ok(()),
-            _ => Err(ParseURLError { uri: &url_str }),
-        }
-    } else {
-        Err(ParseURLError { uri: &url_str })
+            _ => Err(CrateError::URLFormatError),
+        };
     }
+    Err(CrateError::URLFormatError)
 }
 
 fn main() {
@@ -199,7 +216,7 @@ fn main() {
         ftype: matches.value_of("ftype").unwrap_or("").into(),
     };
 
-    if let Some(paths) = parse_page(cli_opts.page, cli_opts.ftype) {
+    if let Ok(Some(paths)) = parse_page(cli_opts.page, cli_opts.ftype) {
         download_all(paths, cli_opts.out_dir);
     }
 }
