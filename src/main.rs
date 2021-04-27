@@ -21,7 +21,7 @@ type Result<T> = std::result::Result<T, CrateError>;
 enum CrateError {
     /// The error was caued by a failure to read or write bytes on an IO stream.
     IoError,
-    // The error was caused during an HTTP GET request.
+    /// The error was caused during an HTTP GET request.
     HttpReqError,
     /// The error was caused because it was not specified as input a valid http/https URL.
     URLFormatError,
