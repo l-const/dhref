@@ -132,30 +132,34 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
     if let Err(err) = check_url(base_uri) {
         return Err(err);
     }
-
-    if let Ok(body) = reqwest::blocking::get(base_uri).unwrap().text() {
-        let document = Document::from(&body);
-        let elements: Vec<String> = document
-            .select("a")
-            .iter()
-            .map(|elem| elem.attr("href").unwrap_or_default().to_string())
-            .filter(|elem_str| {
-                if ftype == FileType::ALL {
-                    elem_str.contains(".")
+    match reqwest::blocking::get(base_uri) {
+        Err(_) => Err(CrateError::HttpReqError),
+        Ok(resp) => match resp.text() {
+            Err(_) => Err(CrateError::HttpReqError),
+            Ok(body) => {
+                let document = Document::from(&body);
+                let elements: Vec<String> = document
+                    .select("a")
+                    .iter()
+                    .map(|elem| elem.attr("href").unwrap_or_default().to_string())
+                    .filter(|elem_str| {
+                        if ftype == FileType::ALL {
+                            elem_str.contains(".")
+                        } else {
+                            let ftype_str: &str = ftype.into();
+                            elem_str.ends_with(ftype_str)
+                        }
+                    })
+                    .map(|elem| format!("{}{}", &base_uri, elem))
+                    .collect();
+                if elements.len() > 0 {
+                    Ok(Some(elements))
                 } else {
-                    let ftype_str: &str = ftype.into();
-                    elem_str.ends_with(ftype_str)
+                    Ok(None)
                 }
-            })
-            .map(|elem| format!("{}{}", &base_uri, elem))
-            .collect();
-        if elements.len() > 0 {
-            return Ok(Some(elements));
-        } else {
-            return Ok(None);
-        }
+            }
+        },
     }
-    Err(CrateError::HttpReqError)
 }
 
 fn check_url(url_str: &str) -> Result<()> {
@@ -210,8 +214,10 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     const PAGE: &str = "https://15445.courses.cs.cmu.edu/fall2019/schedule.html";
+
     #[test]
     fn test_check_url() {
         let mut url = "file://hello";
@@ -228,8 +234,7 @@ mod tests {
         assert!(result.is_ok());
         result = parse_page(PAGE, FileType::ALL);
         assert!(result.is_ok());
-        let mut page = "http://";
-        // panics in unwrap()
+        let page = "http://";
         result = parse_page(page, FileType::ALL);
         assert!(result.is_err());
     }
