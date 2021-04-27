@@ -175,7 +175,7 @@ fn check_url(url_str: &str) -> Result<()> {
 
 fn main() {
     let matches = App::new("dhref")
-        .version("0.1.1")
+        .version("0.1.2")
         .author("Kostas L. <konlampro94@gmail.com>")
         .about("Download files embed in a page through\n relative and root-relative hyperlinks,\nfrom your terminal.")
         .arg(
