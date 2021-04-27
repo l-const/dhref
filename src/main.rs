@@ -13,21 +13,18 @@ use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
-/// Define custorm Result
+/// Define custom Result
 type Result<T> = std::result::Result<T, CrateError>;
 
 /// Represents different type of errors that can happen.
 #[derive(Debug, Clone)]
 enum CrateError {
-    /// The error was caued by a failure to read or write bytes on an IO
-    /// stream.
+    /// The error was caued by a failure to read or write bytes on an IO stream.
     IoError,
     // The error was caused during an HTTP GET request.
     HttpReqError,
-    /// The error was caused because it was not specified as input a valid http/https url.
+    /// The error was caused because it was not specified as input a valid http/https URL.
     URLFormatError,
-    /// The error was used during parsing HTML tokens, searching for some HTML Element.
-    ParseHtmlError,
 }
 
 impl fmt::Display for CrateError {
@@ -36,17 +33,11 @@ impl fmt::Display for CrateError {
             CrateError::IoError => write!(f, "Io Error!"),
             CrateError::HttpReqError => write!(f, "Http Request Error!"),
             CrateError::URLFormatError => write!(f, "URL Format Error!"),
-            CrateError::ParseHtmlError => write!(f, "Parse HTML Tree Error!"),
         }
     }
 }
 
 impl Error for CrateError {}
-
-#[derive(PartialEq)]
-struct ParseURLError<'uri> {
-    uri: &'uri str,
-}
 
 #[derive(Debug, Default)]
 struct CliOpts<'input> {
@@ -103,28 +94,6 @@ impl Default for FileType {
     }
 }
 
-impl<'uri> Error for ParseURLError<'uri> {}
-
-impl<'uri> fmt::Debug for ParseURLError<'uri> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ParseURLErrror : {} does not have a http/https scheme!",
-            self.uri
-        )
-    }
-}
-
-impl<'uri> fmt::Display for ParseURLError<'uri> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ParseURLError: {} does not have a http/https scheme!",
-            self.uri
-        )
-    }
-}
-
 async fn download_one(location: &str, out_dir: &str) -> Result<()> {
     if let Ok(body) = reqwest::get(location).await.unwrap().bytes().await {
         if let Ok(mut file) = File::create(format!(
@@ -141,38 +110,42 @@ async fn download_one(location: &str, out_dir: &str) -> Result<()> {
 }
 
 #[tokio::main]
-async fn download_all(vector_path: Vec<String>, out_dir: &str) {
+async fn download_all(vector_path: Vec<String>, out_dir: &str) -> Vec<Result<()>> {
     let futures: Vec<_> = vector_path
         .iter()
         .map(|path| download_one(path, out_dir))
         .collect();
-    future::join_all(futures).await;
+    future::join_all(futures).await
 }
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
-    check_url(base_uri).expect("Error in url format: ");
-    //TODO: IO:ERROR handle
-    let body = reqwest::blocking::get(base_uri).unwrap().text().unwrap();
-    let document = Document::from(&body);
-    let elements: Vec<String> = document
-        .select("a")
-        .iter()
-        .map(|elem| elem.attr("href").unwrap().to_string())
-        .filter(|elem_str| {
-            if ftype == FileType::ALL {
-                elem_str.contains(".")
-            } else {
-                let ftype_str: &str = ftype.into();
-                elem_str.ends_with(ftype_str)
-            }
-        })
-        .map(|elem| format!("{}{}", &base_uri, elem))
-        .collect();
-    if elements.len() > 0 {
-        Ok(Some(elements))
-    } else {
-        Ok(None)
+    if let Err(err) = check_url(base_uri) {
+        return Err(err);
     }
+
+    if let Ok(body) = reqwest::blocking::get(base_uri).unwrap().text() {
+        let document = Document::from(&body);
+        let elements: Vec<String> = document
+            .select("a")
+            .iter()
+            .map(|elem| elem.attr("href").unwrap_or_default().to_string())
+            .filter(|elem_str| {
+                if ftype == FileType::ALL {
+                    elem_str.contains(".")
+                } else {
+                    let ftype_str: &str = ftype.into();
+                    elem_str.ends_with(ftype_str)
+                }
+            })
+            .map(|elem| format!("{}{}", &base_uri, elem))
+            .collect();
+        if elements.len() > 0 {
+            return Ok(Some(elements));
+        } else {
+            return Ok(None);
+        }
+    }
+    Err(CrateError::HttpReqError)
 }
 
 fn check_url(url_str: &str) -> Result<()> {
@@ -188,9 +161,9 @@ fn check_url(url_str: &str) -> Result<()> {
 
 fn main() {
     let matches = App::new("dhref")
-        .version("0.1.0")
+        .version("0.1.1")
         .author("Kostas L. <konlampro94@gmail.com>")
-        .about("Download files embed in a page through\n relative and root-relative hyperlinks.")
+        .about("Download files embed in a page through\n relative and root-relative hyperlinks,\nfrom your terminal.")
         .arg(
             Arg::with_name("uri")
                 .required(true)
@@ -216,8 +189,12 @@ fn main() {
         ftype: matches.value_of("ftype").unwrap_or("").into(),
     };
 
-    if let Ok(Some(paths)) = parse_page(cli_opts.page, cli_opts.ftype) {
-        download_all(paths, cli_opts.out_dir);
+    match parse_page(cli_opts.page, cli_opts.ftype) {
+        Ok(Some(paths)) => {
+            download_all(paths, cli_opts.out_dir);
+        }
+        Err(err) => eprintln!("Error: {}", err),
+        Ok(None) => {}
     }
 }
 
@@ -234,4 +211,7 @@ mod tests {
         url = "http://google.com";
         assert!(check_url(url).is_ok());
     }
+
+    #[test]
+    fn test_parse_page() {}
 }
