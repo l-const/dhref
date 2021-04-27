@@ -17,7 +17,7 @@ use tokio::io::AsyncWriteExt;
 type Result<T> = std::result::Result<T, CrateError>;
 
 /// Represents different type of errors that can happen.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum CrateError {
     /// The error was caued by a failure to read or write bytes on an IO stream.
     IoError,
@@ -95,27 +95,37 @@ impl Default for FileType {
 }
 
 async fn download_one(location: &str, out_dir: &str) -> Result<()> {
-    if let Ok(body) = reqwest::get(location).await.unwrap().bytes().await {
-        if let Ok(mut file) = File::create(format!(
-            "{}{}",
-            out_dir,
-            location.split('/').last().expect("Error creating a file!")
-        ))
-        .await
-        {
-            return file.write_all(&body).await.map_err(|_| CrateError::IoError);
-        }
+    match reqwest::get(location).await {
+        Err(_) => Err(CrateError::HttpReqError),
+        Ok(resp) => match resp.bytes().await {
+            Err(_) => Err(CrateError::IoError),
+            Ok(body) => {
+                match File::create(format!(
+                    "{}{}",
+                    out_dir,
+                    location.split('/').last().unwrap()
+                ))
+                .await
+                {
+                    Err(_) => Err(CrateError::IoError),
+                    Ok(mut file) => file.write_all(&body).await.map_err(|_| CrateError::IoError),
+                }
+            }
+        },
     }
-    Err(CrateError::HttpReqError)
 }
 
 #[tokio::main]
-async fn download_all(vector_path: Vec<String>, out_dir: &str) -> Vec<Result<()>> {
+async fn download_all(vector_path: Vec<String>, out_dir: &str) {
     let futures: Vec<_> = vector_path
         .iter()
         .map(|path| download_one(path, out_dir))
         .collect();
-    future::join_all(futures).await
+    let vec_results = future::join_all(futures).await;
+    vec_results
+        .into_iter()
+        .map(|res| res.unwrap_err())
+        .for_each(|e| eprintln!("{:?}", e));
 }
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
@@ -201,17 +211,26 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    const PAGE: &str = "https://15445.courses.cs.cmu.edu/fall2019/schedule.html";
     #[test]
     fn test_check_url() {
         let mut url = "file://hello";
-        assert!(check_url(url).is_err());
+        assert_eq!(check_url(url), Err(CrateError::URLFormatError));
         url = "https://google.com";
-        assert!(check_url(url).is_ok());
+        assert_eq!(check_url(url), Ok(()));
         url = "http://google.com";
-        assert!(check_url(url).is_ok());
+        assert_eq!(check_url(url), Ok(()));
     }
 
     #[test]
-    fn test_parse_page() {}
+    fn test_parse_page() {
+        let mut result = parse_page(PAGE, FileType::PDF);
+        assert!(result.is_ok());
+        result = parse_page(PAGE, FileType::ALL);
+        assert!(result.is_ok());
+        let mut page = "http://";
+        // panics in unwrap()
+        result = parse_page(page, FileType::ALL);
+        assert!(result.is_err());
+    }
 }
