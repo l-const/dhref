@@ -5,7 +5,7 @@ authors = ["l-const <const-l@outlook.com>"]
 edition = "2018"
 license = "MIT"
 repository = "https://github.com/l-const/dhref"
-description = "Download files embed to a page through relative/root-relative URLs."
+description = "Download files embed to a page through relative/root-relative URLs, from your terminal."
 categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
