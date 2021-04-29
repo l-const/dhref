@@ -1,6 +1,6 @@
 # dhref 
 
-[<img alt="crates.io" src="https://img.shields.io/crates/v/dhref.svg?style=for-the-badge&color=fc8d62&logo=rust" height="25">](https://crates.io/crates/dhref)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/dhref.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/dhref)
 
 **Download files embed to a page through relative/root-relative URLs, from your terminal.**
 
