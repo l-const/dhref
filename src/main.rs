@@ -1,8 +1,3 @@
-extern crate clap;
-extern crate futures;
-extern crate nipper;
-extern crate reqwest;
-extern crate tokio;
 
 use clap::{App, Arg};
 use futures::future;
