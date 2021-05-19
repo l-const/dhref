@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, CrateError>;
 /// Represents different type of errors that can happen.
 #[derive(Debug, Clone, PartialEq)]
 enum CrateError {
-    /// The error was caued by a failure to read or write bytes on an IO stream.
+    /// The error was casued by a failure to read or write bytes on an IO stream.
     IoError(String),
     /// The error was caused during an HTTP GET request.
     HttpReqError(String),
@@ -187,7 +187,7 @@ fn check_url(url_str: &str) -> Result<()> {
 
 fn main() {
     let matches = App::new("dhref")
-        .version("0.1.2")
+        .version("0.2.0")
         .author("Kostas L. <konlampro94@gmail.com>")
         .about("Download files embed in a page through\n relative and root-relative hyperlinks,\nfrom your terminal.")
         .arg(
