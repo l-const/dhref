@@ -1,4 +1,3 @@
-
 use clap::{App, Arg};
 use futures::future;
 use nipper::Document;
@@ -15,9 +14,9 @@ type Result<T> = std::result::Result<T, CrateError>;
 #[derive(Debug, Clone, PartialEq)]
 enum CrateError {
     /// The error was caued by a failure to read or write bytes on an IO stream.
-    IoError,
+    IoError(String),
     /// The error was caused during an HTTP GET request.
-    HttpReqError,
+    HttpReqError(String),
     /// The error was caused because it was not specified as input a valid http/https URL.
     URLFormatError,
 }
@@ -25,8 +24,10 @@ enum CrateError {
 impl fmt::Display for CrateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CrateError::IoError => write!(f, "Io Error!"),
-            CrateError::HttpReqError => write!(f, "Http Request Error!"),
+            CrateError::IoError(tokio_error) => write!(f, "Io Error: {}!", tokio_error),
+            CrateError::HttpReqError(http_error) => {
+                write!(f, "Http Request Error: {}!", http_error)
+            }
             CrateError::URLFormatError => write!(f, "URL Format Error!"),
         }
     }
@@ -43,57 +44,69 @@ struct CliOpts<'input> {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum FileType {
-    PDF,
-    DOC,
-    DOCX,
-    XLSX,
-    CSV,
-    PPT,
-    PPTX,
-    ALL,
+    Pdf,
+    Doc,
+    Docx,
+    Xlsx,
+    Csv,
+    Ppt,
+    Pptx,
+    All,
 }
 
 impl From<&str> for FileType {
     fn from(input: &str) -> Self {
         match input {
-            "pdf" => FileType::PDF,
-            "doc" => FileType::DOC,
-            "docx" => FileType::DOCX,
-            "xlsx" => FileType::XLSX,
-            "ppt" => FileType::PPT,
-            "pptx" => FileType::PPTX,
-            "csv" => FileType::CSV,
-            _ => FileType::ALL,
+            "pdf" => FileType::Pdf,
+            "doc" => FileType::Doc,
+            "docx" => FileType::Docx,
+            "xlsx" => FileType::Xlsx,
+            "ppt" => FileType::Ppt,
+            "pptx" => FileType::Pptx,
+            "csv" => FileType::Csv,
+            _ => FileType::All,
         }
+    }
+}
+
+impl From<tokio::io::Error> for CrateError {
+    fn from(input: tokio::io::Error) -> Self {
+        CrateError::IoError(input.to_string())
+    }
+}
+
+impl From<reqwest::Error> for CrateError {
+    fn from(input: reqwest::Error) -> Self {
+        CrateError::HttpReqError(input.to_string())
     }
 }
 
 impl Into<&str> for FileType {
     fn into(self) -> &'static str {
         match self {
-            FileType::PDF => ".pdf",
-            FileType::DOC => ".doc",
-            FileType::DOCX => ".docx",
-            FileType::XLSX => ".xlsx",
-            FileType::PPT => ".ppt",
-            FileType::PPTX => ".pptx",
-            FileType::CSV => ".csv",
-            FileType::ALL => "",
+            FileType::Pdf => ".pdf",
+            FileType::Doc => ".doc",
+            FileType::Docx => ".docx",
+            FileType::Xlsx => ".xlsx",
+            FileType::Ppt => ".ppt",
+            FileType::Pptx => ".pptx",
+            FileType::Csv => ".csv",
+            FileType::All => "",
         }
     }
 }
 
 impl Default for FileType {
     fn default() -> Self {
-        FileType::ALL
+        FileType::All
     }
 }
 
 async fn download_one(location: &str, out_dir: &str) -> Result<()> {
     match reqwest::get(location).await {
-        Err(_) => Err(CrateError::HttpReqError),
+        Err(req_err) => Err(CrateError::HttpReqError(req_err.to_string())),
         Ok(resp) => match resp.bytes().await {
-            Err(_) => Err(CrateError::IoError),
+            Err(req_des_error) => Err(CrateError::HttpReqError(req_des_error.to_string())),
             Ok(body) => {
                 match File::create(format!(
                     "{}{}",
@@ -102,8 +115,11 @@ async fn download_one(location: &str, out_dir: &str) -> Result<()> {
                 ))
                 .await
                 {
-                    Err(_) => Err(CrateError::IoError),
-                    Ok(mut file) => file.write_all(&body).await.map_err(|_| CrateError::IoError),
+                    Err(tokerror) => Err(CrateError::IoError(tokerror.to_string())),
+                    Ok(mut file) => file
+                        .write_all(&body)
+                        .await
+                        .map_err(|err| CrateError::IoError(err.to_string())),
                 }
             }
         },
@@ -119,8 +135,9 @@ async fn download_all(vector_path: Vec<String>, out_dir: &str) {
     let vec_results = future::join_all(futures).await;
     vec_results
         .into_iter()
-        .map(|res| res.unwrap_err())
-        .for_each(|e| eprintln!("{:?}", e));
+        .filter(|res| res.is_err())
+        .map(|err| err.unwrap_err())
+        .for_each(|e| eprintln!("Error {:?}", e));
 }
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
@@ -128,9 +145,9 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
         return Err(err);
     }
     match reqwest::blocking::get(base_uri) {
-        Err(_) => Err(CrateError::HttpReqError),
+        Err(req_err) => Err(CrateError::HttpReqError(req_err.to_string())),
         Ok(resp) => match resp.text() {
-            Err(_) => Err(CrateError::HttpReqError),
+            Err(req_des_err) => Err(CrateError::HttpReqError(req_des_err.to_string())),
             Ok(body) => {
                 let document = Document::from(&body);
                 let elements: Vec<String> = document
@@ -138,7 +155,7 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
                     .iter()
                     .map(|elem| elem.attr("href").unwrap_or_default().to_string())
                     .filter(|elem_str| {
-                        if ftype == FileType::ALL {
+                        if ftype == FileType::All {
                             elem_str.contains(".")
                         } else {
                             let ftype_str: &str = ftype.into();
@@ -225,12 +242,12 @@ mod tests {
 
     #[test]
     fn test_parse_page() {
-        let mut result = parse_page(PAGE, FileType::PDF);
+        let mut result = parse_page(PAGE, FileType::Pdf);
         assert!(result.is_ok());
-        result = parse_page(PAGE, FileType::ALL);
+        result = parse_page(PAGE, FileType::All);
         assert!(result.is_ok());
         let page = "http://";
-        result = parse_page(page, FileType::ALL);
+        result = parse_page(page, FileType::All);
         assert!(result.is_err());
     }
 }
