@@ -131,13 +131,10 @@ async fn download_all(vector_path: Vec<String>, out_dir: &str) {
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
     check_url(base_uri)?;
-    match reqwest::blocking::get(base_uri) {
-        Err(req_err) => Err(CrateError::HttpReqError(req_err.to_string())),
-        Ok(resp) => match resp.text() {
-            Err(req_des_err) => Err(CrateError::HttpReqError(req_des_err.to_string())),
-            Ok(body) => {
-                let document = Document::from(&body);
-                let elements: Vec<String> = document
+    let resp = reqwest::blocking::get(base_uri)?;
+    let body =  resp.text()?; 
+    let document = Document::from(&body);
+    let elements: Vec<String> = document
                     .select("a")
                     .iter()
                     .map(|elem| elem.attr("href").unwrap_or_default().to_string())
@@ -151,13 +148,10 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
                     })
                     .map(|elem| format!("{}{}", &base_uri, elem))
                     .collect();
-                if elements.len() > 0 {
-                    Ok(Some(elements))
-                } else {
-                    Ok(None)
-                }
-            }
-        },
+    if elements.len() > 0 {
+        Ok(Some(elements))
+    } else {
+        Ok(None)
     }
 }
 
