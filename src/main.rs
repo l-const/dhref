@@ -103,27 +103,16 @@ impl Default for FileType {
 }
 
 async fn download_one(location: &str, out_dir: &str) -> Result<()> {
-    match reqwest::get(location).await {
-        Err(req_err) => Err(CrateError::HttpReqError(req_err.to_string())),
-        Ok(resp) => match resp.bytes().await {
-            Err(req_des_error) => Err(CrateError::HttpReqError(req_des_error.to_string())),
-            Ok(body) => {
-                match File::create(format!(
-                    "{}{}",
-                    out_dir,
-                    location.split('/').last().unwrap()
-                ))
-                .await
-                {
-                    Err(tokerror) => Err(CrateError::IoError(tokerror.to_string())),
-                    Ok(mut file) => file
-                        .write_all(&body)
-                        .await
-                        .map_err(|err| CrateError::IoError(err.to_string())),
-                }
-            }
-        },
-    }
+    let resp = reqwest::get(location).await?;
+    let body = resp.bytes().await?;
+    let mut file = File::create(format!(
+        "{}{}",
+        out_dir,
+        location.split('/').last().unwrap()
+    ))
+    .await?;
+    file.write_all(&body).await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -141,9 +130,7 @@ async fn download_all(vector_path: Vec<String>, out_dir: &str) {
 }
 
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
-    if let Err(err) = check_url(base_uri) {
-        return Err(err);
-    }
+    check_url(base_uri)?;
     match reqwest::blocking::get(base_uri) {
         Err(req_err) => Err(CrateError::HttpReqError(req_err.to_string())),
         Ok(resp) => match resp.text() {
