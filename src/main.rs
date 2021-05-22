@@ -7,13 +7,16 @@ use std::fmt;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 
+pub use self::CrateError::*;
+pub use self::FileType::*;
+
 /// Define custom Result
 type Result<T> = std::result::Result<T, CrateError>;
 
 /// Represents different type of errors that can happen.
 #[derive(Debug, Clone, PartialEq)]
-enum CrateError {
-    /// The error was casued by a failure to read or write bytes on an IO stream.
+pub enum CrateError {
+    /// The error was caused by a failure to read or write bytes on an IO stream.
     IoError(String),
     /// The error was caused during an HTTP GET request.
     HttpReqError(String),
@@ -24,11 +27,11 @@ enum CrateError {
 impl fmt::Display for CrateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CrateError::IoError(tokio_error) => write!(f, "Io Error: {}!", tokio_error),
-            CrateError::HttpReqError(http_error) => {
+            IoError(tokio_error) => write!(f, "Io Error: {}!", tokio_error),
+            HttpReqError(http_error) => {
                 write!(f, "Http Request Error: {}!", http_error)
             }
-            CrateError::URLFormatError => write!(f, "URL Format Error!"),
+            URLFormatError => write!(f, "URL Format Error!"),
         }
     }
 }
@@ -43,7 +46,7 @@ struct CliOpts<'input> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum FileType {
+pub enum FileType {
     Pdf,
     Doc,
     Docx,
@@ -57,48 +60,48 @@ enum FileType {
 impl From<&str> for FileType {
     fn from(input: &str) -> Self {
         match input {
-            "pdf" => FileType::Pdf,
-            "doc" => FileType::Doc,
-            "docx" => FileType::Docx,
-            "xlsx" => FileType::Xlsx,
-            "ppt" => FileType::Ppt,
-            "pptx" => FileType::Pptx,
-            "csv" => FileType::Csv,
-            _ => FileType::All,
+            "pdf" => Pdf,
+            "doc" => Doc,
+            "docx" => Docx,
+            "xlsx" => Xlsx,
+            "ppt" => Ppt,
+            "pptx" => Pptx,
+            "csv" => Csv,
+            _ => All,
         }
     }
 }
 
 impl From<tokio::io::Error> for CrateError {
     fn from(input: tokio::io::Error) -> Self {
-        CrateError::IoError(input.to_string())
+        IoError(input.to_string())
     }
 }
 
 impl From<reqwest::Error> for CrateError {
     fn from(input: reqwest::Error) -> Self {
-        CrateError::HttpReqError(input.to_string())
+        HttpReqError(input.to_string())
     }
 }
 
 impl Into<&str> for FileType {
     fn into(self) -> &'static str {
         match self {
-            FileType::Pdf => ".pdf",
-            FileType::Doc => ".doc",
-            FileType::Docx => ".docx",
-            FileType::Xlsx => ".xlsx",
-            FileType::Ppt => ".ppt",
-            FileType::Pptx => ".pptx",
-            FileType::Csv => ".csv",
-            FileType::All => "",
+            Pdf => ".pdf",
+            Doc => ".doc",
+            Docx => ".docx",
+            Xlsx => ".xlsx",
+            Ppt => ".ppt",
+            Pptx => ".pptx",
+            Csv => ".csv",
+            All => "",
         }
     }
 }
 
 impl Default for FileType {
     fn default() -> Self {
-        FileType::All
+        All
     }
 }
 
@@ -132,22 +135,22 @@ async fn download_all(vector_path: Vec<String>, out_dir: &str) {
 fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
     check_url(base_uri)?;
     let resp = reqwest::blocking::get(base_uri)?;
-    let body =  resp.text()?; 
+    let body = resp.text()?;
     let document = Document::from(&body);
     let elements: Vec<String> = document
-                    .select("a")
-                    .iter()
-                    .map(|elem| elem.attr("href").unwrap_or_default().to_string())
-                    .filter(|elem_str| {
-                        if ftype == FileType::All {
-                            elem_str.contains(".")
-                        } else {
-                            let ftype_str: &str = ftype.into();
-                            elem_str.ends_with(ftype_str)
-                        }
-                    })
-                    .map(|elem| format!("{}{}", &base_uri, elem))
-                    .collect();
+        .select("a")
+        .iter()
+        .map(|elem| elem.attr("href").unwrap_or_default().to_string())
+        .filter(|elem_str| {
+            if ftype == FileType::All {
+                elem_str.contains(".")
+            } else {
+                let ftype_str: &str = ftype.into();
+                elem_str.ends_with(ftype_str)
+            }
+        })
+        .map(|elem| format!("{}{}", &base_uri, elem))
+        .collect();
     if elements.len() > 0 {
         Ok(Some(elements))
     } else {
@@ -157,13 +160,14 @@ fn parse_page(base_uri: &str, ftype: FileType) -> Result<Option<Vec<String>>> {
 
 fn check_url(url_str: &str) -> Result<()> {
     if let Some(res) = url_str.split(':').next() {
-        return match res {
+        match res {
             "http" => Ok(()),
             "https" => Ok(()),
-            _ => Err(CrateError::URLFormatError),
-        };
+            _ => Err(URLFormatError),
+        }
+    } else {
+        Err(URLFormatError)
     }
-    Err(CrateError::URLFormatError)
 }
 
 fn main() {
@@ -214,7 +218,7 @@ mod tests {
     #[test]
     fn test_check_url() {
         let mut url = "file://hello";
-        assert_eq!(check_url(url), Err(CrateError::URLFormatError));
+        assert_eq!(check_url(url), Err(URLFormatError));
         url = "https://google.com";
         assert_eq!(check_url(url), Ok(()));
         url = "http://google.com";
@@ -223,12 +227,12 @@ mod tests {
 
     #[test]
     fn test_parse_page() {
-        let mut result = parse_page(PAGE, FileType::Pdf);
+        let mut result = parse_page(PAGE, Pdf);
         assert!(result.is_ok());
-        result = parse_page(PAGE, FileType::All);
+        result = parse_page(PAGE, All);
         assert!(result.is_ok());
         let page = "http://";
-        result = parse_page(page, FileType::All);
+        result = parse_page(page, All);
         assert!(result.is_err());
     }
 }
